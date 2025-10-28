@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="79b157af-5efa-41c9-842f-3587d842925d" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/../../.idea/PythonProject3.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../postcss.config.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../index.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/default-avatar.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/slide1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/slide2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/slide3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/slide4.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/slide5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/AdminDepositRequests.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/AdminUserHistory.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/AdminWithdrawRequests.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/App.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/DepositForm.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/Forgotpassword.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/Home.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/LoginForm.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/PaymentNumber.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/RegisterForm.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/UserHistory.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/WithdrawForm.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/api/axiosConfig.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/components/DiceButton.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/components/Game.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/components/GameBoard.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/components/LudoBoard.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/components/Match.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/index.css" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/index.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/pages/LifetimeWithdraw.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/pages/LudoGamePage.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/pages/MatchmakingPage.jsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/socket/socket.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../tailwind.config.js" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 7
+}]]></component>
+  <component name="ProjectId" id="315PfN8qOIJdf1r7AuLe9SzRUdN" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "master",
+    "last_opened_file_path": "D:/PythonProject3/public/slides"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-a5bc9544c897-aa17d162503b-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-243.23654.177" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="79b157af-5efa-41c9-842f-3587d842925d" name="Changes" comment="" />
+      <created>1754811062436</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1754811062436</updated>
+    </task>
+    <servers />
+  </component>
+</project>

@@ -1,0 +1,208 @@
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+export default function ReferralHistoryTable() {
+  const navigate = useNavigate();
+  const [bonuses, setBonuses] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  useEffect(() => {
+    const fetchBonusHistory = async () => {
+      setLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem("authToken");
+      const baseUrl =
+        process.env.REACT_APP_API_BASE_URL?.trim() || "http://localhost:8080";
+
+      try {
+        const res = await fetch(`${baseUrl}/api/bonus-history/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) throw new Error("Failed to fetch bonus history");
+
+        const data = await res.json();
+
+        // Normalize statuses (যাতে REFERRER_PENDING → PENDING দেখায়)
+        const normalized = data.map((item) => ({
+          ...item,
+          status:
+            item.type === "REFERRER_PENDING"
+              ? item.status || "PENDING"
+              : item.status || "COMPLETED",
+        }));
+
+        setBonuses(normalized);
+      } catch (err) {
+        console.error("Error fetching bonus history:", err);
+        setError(err.message || "Something went wrong");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBonusHistory();
+  }, []);
+
+  // date filter
+  useEffect(() => {
+    const filteredData = bonuses.filter((b) => {
+      const refDate = new Date(b.createdAt);
+      refDate.setHours(0, 0, 0, 0);
+
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+
+      if (start) start.setHours(0, 0, 0, 0);
+      if (end) end.setHours(23, 59, 59, 999);
+
+      if (start && refDate < start) return false;
+      if (end && refDate > end) return false;
+
+      return true;
+    });
+    setFiltered(filteredData);
+  }, [bonuses, startDate, endDate]);
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "Invalid Date";
+    return date.toLocaleString("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  };
+
+  const totalAmount = filtered.reduce(
+    (sum, b) => sum + Number(b.amount || 0),
+    0
+  );
+
+  const statusColor = {
+    PENDING: "#FBBF24",
+    COMPLETED: "#22C55E",
+    REJECTED: "#EF4444",
+  };
+
+  return (
+    <div className="p-6 bg-gray-50 rounded-lg shadow-md">
+      <h2 className="text-2xl font-semibold mb-4 text-gray-800">
+        My Bonus / Referral History
+      </h2>
+
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-4 px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded text-gray-800"
+      >
+        Back
+      </button>
+
+      {/* Date Filter */}
+      <div className="flex space-x-4 mb-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Start Date
+          </label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            End Date
+          </label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+          />
+        </div>
+      </div>
+
+      {loading && (
+        <div className="space-y-2">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-8 bg-gray-200 rounded animate-pulse"></div>
+          ))}
+        </div>
+      )}
+
+      {error && <p className="text-red-500 text-center">{error}</p>}
+
+      {!loading && !error && (
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white rounded-lg shadow-md border border-gray-200">
+            <thead className="bg-gray-100">
+              <tr>
+                {[
+                  "Type",
+                  "Amount",
+                  "Source GameId",
+                  "User GameId",
+                  "Status",
+                  "Created At",
+                ].map((header) => (
+                  <th
+                    key={header}
+                    className="px-4 py-3 text-left text-sm font-medium text-gray-700 border-b"
+                  >
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length > 0 ? (
+                filtered.map((b, index) => (
+                  <tr key={index} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-2 border">{b.type || "Referral"}</td>
+                    <td className="px-4 py-2 border text-green-600 font-semibold">
+                      {Number(b.amount).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2 border">{b.sourceGameId || "N/A"}</td>
+                    <td className="px-4 py-2 border">{b.userGameId || "N/A"}</td>
+                    <td
+                      className="px-4 py-2 border font-semibold"
+                      style={{ color: statusColor[b.status] || "#6B7280" }}
+                    >
+                      {b.status}
+                    </td>
+                    <td className="px-4 py-2 border">{formatDate(b.createdAt)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-gray-500">
+                    No history found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {filtered.length > 0 && (
+              <tfoot>
+                <tr className="bg-gray-100 font-semibold">
+                  <td className="px-4 py-2 border">Total</td>
+                  <td className="px-4 py-2 border text-green-600">
+                    {totalAmount.toFixed(2)}
+                  </td>
+                  <td colSpan="4" className="border"></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
