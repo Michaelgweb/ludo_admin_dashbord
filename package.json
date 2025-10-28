@@ -11,10 +11,7 @@
     "sockjs-client": "^1.6.1"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "react-scripts start"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",
