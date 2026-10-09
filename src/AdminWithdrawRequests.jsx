@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+
+import React, { useEffect, useState, useCallback } from "react";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
@@ -11,11 +12,12 @@ export default function AdminWithdrawRequests({ onCancel }) {
 
   const token = localStorage.getItem("authToken");
 
-  // Date formatting helper
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
+
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "N/A";
+    if (Number.isNaN(date.getTime())) return "N/A";
+
     return date.toLocaleString(undefined, {
       year: "numeric",
       month: "2-digit",
@@ -27,11 +29,7 @@ export default function AdminWithdrawRequests({ onCancel }) {
     });
   };
 
-  useEffect(() => {
-    fetchAllRequests();
-  }, []);
-
-  const fetchAllRequests = async () => {
+  const fetchAllRequests = useCallback(async () => {
     setLoading(true);
     setMessage("");
 
@@ -43,14 +41,21 @@ export default function AdminWithdrawRequests({ onCancel }) {
         },
       });
 
-      if (!res.ok) throw new Error(`Failed to load data: ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`Failed to load data: ${res.status}`);
+      }
 
       const data = await res.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid withdraw requests response.");
+      }
 
       // Sort newest first
       data.sort(
         (a, b) =>
-          new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
+          new Date(b.requestedAt || 0).getTime() -
+          new Date(a.requestedAt || 0).getTime()
       );
 
       setRequests(data);
@@ -61,10 +66,15 @@ export default function AdminWithdrawRequests({ onCancel }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchAllRequests();
+  }, [fetchAllRequests]);
 
   const handleAction = async (id, action) => {
     setMessage("");
+
     const url = `${API_BASE_URL}/api/withdraw/${action}/${id}`;
 
     try {
@@ -79,12 +89,13 @@ export default function AdminWithdrawRequests({ onCancel }) {
 
       if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(errorText);
+        throw new Error(errorText || `Request failed: ${res.status}`);
       }
 
       setMessage(`✅ Request ${action} completed successfully.`);
-      // Reload all requests but keep full history
-      fetchAllRequests();
+
+      // Refresh the full request history
+      await fetchAllRequests();
     } catch (err) {
       console.error(`Error on ${action}:`, err);
       setMessage(`❌ ${action} failed: ${err.message}`);
@@ -93,32 +104,36 @@ export default function AdminWithdrawRequests({ onCancel }) {
 
   const renderStatusBadge = (status) => {
     const base = "px-2 py-1 rounded text-xs font-semibold text-white";
+
     const colors = {
       PENDING: "bg-yellow-500",
       APPROVED: "bg-blue-600",
       REJECTED: "bg-red-600",
       COMPLETED: "bg-green-600",
     };
+
     const statusLabels = {
       PENDING: "Pending",
       APPROVED: "Approved",
       REJECTED: "Rejected",
       COMPLETED: "Completed",
     };
+
     return (
       <span className={`${base} ${colors[status] || "bg-gray-500"}`}>
-        {statusLabels[status] || status}
+        {statusLabels[status] || status || "Unknown"}
       </span>
     );
   };
 
-  // Pagination Logic
   const indexOfLastRequest = currentPage * requestsPerPage;
   const indexOfFirstRequest = indexOfLastRequest - requestsPerPage;
+
   const currentRequests = requests.slice(
     indexOfFirstRequest,
     indexOfLastRequest
   );
+
   const totalPages = Math.ceil(requests.length / requestsPerPage);
 
   return (
@@ -127,6 +142,7 @@ export default function AdminWithdrawRequests({ onCancel }) {
         <h2 className="text-2xl font-bold text-gray-800">
           📤 All Withdraw Requests (Full Log)
         </h2>
+
         <button
           onClick={onCancel}
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium shadow"
@@ -169,22 +185,40 @@ export default function AdminWithdrawRequests({ onCancel }) {
                   <th className="px-4 py-3">Action</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-gray-100">
                 {currentRequests.map((req) => (
                   <tr key={req.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2">{req.id}</td>
+
                     <td className="px-4 py-2 text-indigo-600 font-semibold">
                       {req.gameId || "N/A"}
                     </td>
+
                     <td className="px-4 py-2">{req.mobile || "N/A"}</td>
+
                     <td className="px-4 py-2">
-                      ৳ {Number(req.amount).toFixed(2)}
+                      ৳ {Number(req.amount || 0).toFixed(2)}
                     </td>
+
                     <td className="px-4 py-2">{req.method || "N/A"}</td>
-                    <td className="px-4 py-2">{req.transactionId || "-"}</td>
-                    <td className="px-4 py-2">{req.receiverNumber || "N/A"}</td>
-                    <td className="px-4 py-2">{renderStatusBadge(req.status)}</td>
-                    <td className="px-4 py-2">{formatDate(req.requestedAt)}</td>
+
+                    <td className="px-4 py-2">
+                      {req.transactionId || "-"}
+                    </td>
+
+                    <td className="px-4 py-2">
+                      {req.receiverNumber || "N/A"}
+                    </td>
+
+                    <td className="px-4 py-2">
+                      {renderStatusBadge(req.status)}
+                    </td>
+
+                    <td className="px-4 py-2">
+                      {formatDate(req.requestedAt)}
+                    </td>
+
                     <td className="px-4 py-2 space-y-1">
                       {req.status === "PENDING" && (
                         <>
@@ -194,6 +228,7 @@ export default function AdminWithdrawRequests({ onCancel }) {
                           >
                             Approve
                           </button>
+
                           <button
                             onClick={() => handleAction(req.id, "reject")}
                             className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-semibold w-full"
@@ -202,6 +237,7 @@ export default function AdminWithdrawRequests({ onCancel }) {
                           </button>
                         </>
                       )}
+
                       {req.status === "APPROVED" && (
                         <button
                           onClick={() => handleAction(req.id, "complete")}
@@ -210,8 +246,12 @@ export default function AdminWithdrawRequests({ onCancel }) {
                           Complete
                         </button>
                       )}
-                      {(req.status === "REJECTED" || req.status === "COMPLETED") && (
-                        <span className="text-gray-500 text-xs">✔ Done</span>
+
+                      {(req.status === "REJECTED" ||
+                        req.status === "COMPLETED") && (
+                        <span className="text-gray-500 text-xs">
+                          ✔ Done
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -220,7 +260,6 @@ export default function AdminWithdrawRequests({ onCancel }) {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="mt-4 flex justify-center space-x-4">
             <button
               onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
@@ -233,11 +272,15 @@ export default function AdminWithdrawRequests({ onCancel }) {
             >
               Previous
             </button>
+
             <span className="self-center text-gray-700">
               Page {currentPage} of {totalPages}
             </span>
+
             <button
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              onClick={() =>
+                setCurrentPage((p) => Math.min(p + 1, totalPages))
+              }
               disabled={currentPage === totalPages}
               className={`px-4 py-2 rounded ${
                 currentPage === totalPages
