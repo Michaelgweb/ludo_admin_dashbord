@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+
+import React, { useEffect, useState, useCallback } from "react";
 
 export default function AdminUserHistory({ onCancel }) {
   const [combinedHistory, setCombinedHistory] = useState([]);
@@ -8,14 +9,9 @@ export default function AdminUserHistory({ onCancel }) {
   const itemsPerPage = 20;
   const token = localStorage.getItem("authToken");
 
-  // Use API base URL from env variable
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     setLoading(true);
     setMessage("");
 
@@ -24,9 +20,12 @@ export default function AdminUserHistory({ onCancel }) {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      const depositRes = await fetch(`${API_BASE_URL}/api/deposit/all-history`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const depositRes = await fetch(
+        `${API_BASE_URL}/api/deposit/all-history`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       if (!withdrawRes.ok || !depositRes.ok) {
         throw new Error("Failed to load data.");
@@ -44,7 +43,7 @@ export default function AdminUserHistory({ onCancel }) {
       const formatDateSafe = (date) => {
         if (!date) return null;
         const parsed = new Date(date);
-        return isNaN(parsed.getTime()) ? null : parsed;
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
       };
 
       const formattedWithdraws = withdrawData.map((item) => ({
@@ -72,17 +71,22 @@ export default function AdminUserHistory({ onCancel }) {
       }));
 
       const allCombined = [...formattedWithdraws, ...formattedDeposits]
-        .filter(item => item.date) // only valid dates
-        .sort((a, b) => b.date - a.date); // newest first
+        .filter((item) => item.date)
+        .sort((a, b) => b.date - a.date);
 
       setCombinedHistory(allCombined);
+      setCurrentPage(1);
     } catch (err) {
-      console.error(err);
+      console.error("History Fetch Error:", err);
       setMessage("❌ Failed to load transaction history.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE_URL, token]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
 
   const renderStatusBadge = (status) => {
     const colors = {
@@ -105,6 +109,7 @@ export default function AdminUserHistory({ onCancel }) {
 
   const totalItems = combinedHistory.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
+
   const paginatedData = combinedHistory.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -112,6 +117,7 @@ export default function AdminUserHistory({ onCancel }) {
 
   const formatDisplayDate = (date) => {
     if (!date) return "N/A";
+
     return date.toLocaleString(undefined, {
       year: "numeric",
       month: "2-digit",
@@ -129,6 +135,7 @@ export default function AdminUserHistory({ onCancel }) {
         <h1 className="text-3xl font-extrabold text-gray-900 flex items-center gap-3">
           📊 User Transaction History
         </h1>
+
         <button
           onClick={onCancel}
           className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium shadow-md transition"
@@ -159,12 +166,15 @@ export default function AdminUserHistory({ onCancel }) {
               d="M4 12a8 8 0 018-8v8H4z"
             />
           </svg>
+
           <span className="ml-3 text-indigo-600 text-lg font-semibold">
             Loading...
           </span>
         </div>
       ) : message ? (
-        <p className="text-center text-red-600 font-semibold text-lg">{message}</p>
+        <p className="text-center text-red-600 font-semibold text-lg">
+          {message}
+        </p>
       ) : (
         <>
           <div className="bg-white shadow-lg rounded-xl overflow-auto border border-gray-200 mb-8">
@@ -182,27 +192,44 @@ export default function AdminUserHistory({ onCancel }) {
                   <th className="px-6 py-4">Date</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-gray-200 bg-white">
                 {paginatedData.map((item, index) => (
-                  <tr key={item.id || index} className="hover:bg-indigo-50 transition">
+                  <tr
+                    key={item.id || index}
+                    className="hover:bg-indigo-50 transition"
+                  >
                     <td className="px-6 py-4 font-medium text-gray-700">
-                      {totalItems - ((currentPage - 1) * itemsPerPage + index)}
+                      {totalItems -
+                        ((currentPage - 1) * itemsPerPage + index)}
                     </td>
+
                     <td className="px-6 py-4">
-                      {item.type === "Deposit" ? "💰 Deposit" : "🧾 Withdraw"}
+                      {item.type === "Deposit"
+                        ? "💰 Deposit"
+                        : "🧾 Withdraw"}
                     </td>
+
                     <td className="px-6 py-4 font-semibold text-indigo-700">
                       {item.gameId}
                     </td>
+
                     <td className="px-6 py-4 font-medium text-green-600">
                       ৳ {item.amount.toFixed(2)}
                     </td>
+
                     <td className="px-6 py-4">{item.method}</td>
+
                     <td className="px-6 py-4 truncate max-w-[150px]">
                       {item.transactionId}
                     </td>
+
                     <td className="px-6 py-4">{item.number}</td>
-                    <td className="px-6 py-4">{renderStatusBadge(item.status)}</td>
+
+                    <td className="px-6 py-4">
+                      {renderStatusBadge(item.status)}
+                    </td>
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       {formatDisplayDate(item.date)}
                     </td>
@@ -212,7 +239,6 @@ export default function AdminUserHistory({ onCancel }) {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex justify-center items-center gap-6 mt-4">
             <button
               onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
@@ -231,7 +257,9 @@ export default function AdminUserHistory({ onCancel }) {
             </span>
 
             <button
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              onClick={() =>
+                setCurrentPage((p) => Math.min(p + 1, totalPages))
+              }
               disabled={currentPage === totalPages}
               className={`px-5 py-2 rounded-md text-sm font-semibold transition ${
                 currentPage === totalPages
