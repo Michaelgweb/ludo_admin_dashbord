@@ -11,19 +11,18 @@ import AdminDepositRequests from "./AdminDepositRequests";
 import AdminWithdrawRequests from "./AdminWithdrawRequests";
 import UserHistory from "./UserHistory";
 import AdminUserHistory from "./AdminUserHistory";
-import Match from "./components/Match";
-import LudoBoard from "./components/LudoBoard";
 import ForgotPassword from "./Forgotpassword";
 import PaymentNumber from "./PaymentNumber";
 import ReferralHistoryTable from "./components/ReferralHistoryTable";
 
 function App() {
-  const [token, setToken] = useState(null);
+  const [token, setToken] = useState(
+    () => localStorage.getItem("authToken")
+  );
   const [mobile, setMobile] = useState("");
   const [gameId, setGameId] = useState("");
   const [role, setRole] = useState(null);
   const [showRegister, setShowRegister] = useState(false);
-  const [gameData, setGameData] = useState(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,68 +30,91 @@ function App() {
   const API_BASE_URL =
     process.env.REACT_APP_API_BASE_URL || "http://localhost:8080";
 
-  // Load token from localStorage and redirect to dashboard
+  // Restore login session and redirect to dashboard.
   useEffect(() => {
-    const savedToken = localStorage.getItem("authToken");
-
-    if (savedToken) {
-      setToken(savedToken);
-
-      if (location.pathname === "/" || location.pathname === "/login") {
-        navigate("/dashboard", { replace: true });
-      }
+    if (
+      token &&
+      (location.pathname === "/" || location.pathname === "/login")
+    ) {
+      navigate("/dashboard", { replace: true });
     }
-  }, [navigate, location.pathname]);
+  }, [token, navigate, location.pathname]);
 
-  // Logout
+  // Logout.
   const handleLogout = useCallback(() => {
     localStorage.removeItem("authToken");
+    localStorage.removeItem("userRole");
+
     setToken(null);
     setMobile("");
     setGameId("");
     setRole(null);
-    navigate("/");
+    setShowRegister(false);
+
+    navigate("/", { replace: true });
   }, [navigate]);
 
-  // Load user profile
+  // Load authenticated user's profile.
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setRole(null);
+      return;
+    }
 
-    fetch(`${API_BASE_URL}/api/user/profile`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    })
-      .then((res) => {
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/user/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
         if (!res.ok) {
           throw new Error("Failed to fetch user profile");
         }
-        return res.json();
-      })
-      .then((user) => {
+
+        const user = await res.json();
+
+        if (cancelled) return;
+
+        const userRole = (user.role || "").toLowerCase();
+
         setMobile(user.mobile || "");
         setGameId(user.gameId || "");
-        setRole(user.role || "");
-        localStorage.setItem("userRole", user.role || "");
-      })
-      .catch((err) => {
-        console.error(err);
+        setRole(userRole);
+        localStorage.setItem("userRole", userRole);
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error("Error loading user profile:", err);
         handleLogout();
-      });
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
   }, [token, API_BASE_URL, handleLogout]);
 
   const handleLogin = (newToken) => {
     localStorage.setItem("authToken", newToken);
     setToken(newToken);
-    navigate("/dashboard");
+    setRole(null);
+    navigate("/dashboard", { replace: true });
   };
 
-  const handleRegisterSuccess = () => setShowRegister(false);
+  const handleRegisterSuccess = () => {
+    setShowRegister(false);
+  };
 
-  const isAdmin = (role || "").toLowerCase() === "admin";
+  const isAdmin = role === "admin";
 
-  // Non-authenticated routes
+  // Public routes for unauthenticated users.
   if (!token) {
     if (location.pathname === "/forgot-password") {
       return <ForgotPassword />;
@@ -127,12 +149,16 @@ function App() {
             onLogout={handleLogout}
             onShowDeposit={() => navigate("/deposit")}
             onShowWithdraw={() => navigate("/withdraw")}
-            onShowAdminDepositRequests={() => navigate("/admin-deposits")}
-            onShowAdminWithdrawRequests={() => navigate("/admin-withdraws")}
+            onShowAdminDepositRequests={() =>
+              navigate("/admin-deposits")
+            }
+            onShowAdminWithdrawRequests={() =>
+              navigate("/admin-withdraws")
+            }
             onShowHistory={() => navigate("/history")}
-            onShowAdminUserHistory={() => navigate("/admin-user-history")}
-            onShowLudoMatch={() => navigate("/match")}
-            onShowLudoBoard={() => navigate("/game")}
+            onShowAdminUserHistory={() =>
+              navigate("/admin-user-history")
+            }
           />
         }
       />
@@ -158,6 +184,15 @@ function App() {
       />
 
       <Route
+        path="/history"
+        element={
+          <UserHistory
+            onCancel={() => navigate("/dashboard")}
+          />
+        }
+      />
+
+      <Route
         path="/admin-deposits"
         element={
           isAdmin ? (
@@ -165,7 +200,7 @@ function App() {
               onCancel={() => navigate("/dashboard")}
             />
           ) : (
-            <p>❌ অনুমতি নেই</p>
+            <p>❌ অনুমতি নেই — শুধু অ্যাডমিন</p>
           )
         }
       />
@@ -178,15 +213,8 @@ function App() {
               onCancel={() => navigate("/dashboard")}
             />
           ) : (
-            <p>❌ অনুমতি নেই</p>
+            <p>❌ অনুমতি নেই — শুধু অ্যাডমিন</p>
           )
-        }
-      />
-
-      <Route
-        path="/history"
-        element={
-          <UserHistory onCancel={() => navigate("/dashboard")} />
         }
       />
 
@@ -198,54 +226,16 @@ function App() {
               onCancel={() => navigate("/dashboard")}
             />
           ) : (
-            <p>❌ অনুমতি নেই</p>
+            <p>❌ অনুমতি নেই — শুধু অ্যাডমিন</p>
           )
         }
       />
 
       <Route
         path="/referrals"
-        element={<ReferralHistoryTable />}
-      />
-
-      <Route
-        path="/match"
         element={
-          <Match
-            userMobile={mobile}
-            gameId={gameId}
-            onGameStart={(gameInfo) => {
-              setGameData(gameInfo);
-              navigate("/game");
-            }}
-          />
+          <ReferralHistoryTable />
         }
-      />
-
-      <Route
-        path="/game"
-        element={
-          gameData || localStorage.getItem("gameId") ? (
-            <LudoBoard
-              userMobile={mobile}
-              game={
-                gameData || {
-                  id: localStorage.getItem("gameId"),
-                  playerId: localStorage.getItem("playerId"),
-                  entryFee: localStorage.getItem("entryFee"),
-                }
-              }
-              onCancel={() => navigate("/dashboard")}
-            />
-          ) : (
-            <p>❌ কোনো গেম পাওয়া যায়নি।</p>
-          )
-        }
-      />
-
-      <Route
-        path="/forgot-password"
-        element={<ForgotPassword />}
       />
 
       <Route
@@ -260,10 +250,15 @@ function App() {
                 textAlign: "center",
               }}
             >
-              ❌ অনুমতি নেই (শুধু অ্যাডমিন)
+              ❌ অনুমতি নেই — শুধু অ্যাডমিন
             </p>
           )
         }
+      />
+
+      <Route
+        path="/forgot-password"
+        element={<ForgotPassword />}
       />
 
       <Route
