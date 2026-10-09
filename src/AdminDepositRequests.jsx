@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+
+import React, { useState, useEffect, useCallback } from "react";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
@@ -13,38 +14,24 @@ export default function AdminDepositRequests({ onCancel }) {
 
   const token = localStorage.getItem("authToken");
 
-  useEffect(() => {
-    fetchAllDeposits();
-  }, []);
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "Invalid Date";
-    return date.toLocaleString(undefined, {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-  };
-
-  const fetchAllDeposits = async () => {
+  const fetchAllDeposits = useCallback(async () => {
     setLoading(true);
     setMessage("");
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/deposit/all-history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (!res.ok) throw new Error("Failed to load deposits");
+
       const data = await res.json();
 
       data.sort((a, b) => {
         const dateDiff =
-          new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime();
+          new Date(b.requestedAt).getTime() -
+          new Date(a.requestedAt).getTime();
+
         if (dateDiff !== 0) return dateDiff;
         return b.id - a.id;
       });
@@ -57,6 +44,27 @@ export default function AdminDepositRequests({ onCancel }) {
     } finally {
       setLoading(false);
     }
+  }, [token]);
+
+  useEffect(() => {
+    fetchAllDeposits();
+  }, [fetchAllDeposits]);
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "Invalid Date";
+
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
   };
 
   const handleAction = async (id, action) => {
@@ -65,31 +73,46 @@ export default function AdminDepositRequests({ onCancel }) {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (!res.ok) throw new Error(`${action} failed`);
+
       setMessage(`✅ ${action} successful!`);
-      fetchAllDeposits();
+      await fetchAllDeposits();
     } catch (err) {
+      console.error("Action Error:", err);
       setMessage(`❌ Failed to ${action}`);
     }
   };
 
   const handleUpdatePayment = async (gameId) => {
-    if (!updateNumber) {
+    if (!updateNumber.trim()) {
       setMessage("❌ Enter a valid number.");
       return;
     }
+
     try {
+      const params = new URLSearchParams({
+        gameId: String(gameId ?? ""),
+        method: updateMethod,
+        number: updateNumber.trim(),
+      });
+
       const res = await fetch(
-        `${API_BASE_URL}/api/payment-config/update-by-gameid?gameId=${gameId}&method=${updateMethod}&number=${updateNumber}`,
+        `${API_BASE_URL}/api/payment-config/update-by-gameid?${params}`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+
       if (!res.ok) throw new Error("Update failed");
+
       const data = await res.json();
-      setMessage(`✅ Payment config updated: ${data.method} - ${data.number}`);
-      fetchAllDeposits();
+      setMessage(
+        `✅ Payment config updated: ${data.method} - ${data.number}`
+      );
+
+      await fetchAllDeposits();
     } catch (err) {
       setMessage(`❌ Failed to update payment config: ${err.message}`);
     }
@@ -97,21 +120,41 @@ export default function AdminDepositRequests({ onCancel }) {
 
   const renderStatusBadge = (status) => {
     const base = "px-2 py-1 rounded text-xs font-semibold";
+
     switch (status) {
       case "APPROVED":
-        return <span className={`${base} bg-green-500 text-white`}>Completed</span>;
+        return (
+          <span className={`${base} bg-green-500 text-white`}>
+            Completed
+          </span>
+        );
       case "REJECTED":
-        return <span className={`${base} bg-red-500 text-white`}>Rejected</span>;
+        return (
+          <span className={`${base} bg-red-500 text-white`}>
+            Rejected
+          </span>
+        );
       case "PENDING":
-        return <span className={`${base} bg-yellow-400 text-gray-900`}>Pending</span>;
+        return (
+          <span className={`${base} bg-yellow-400 text-gray-900`}>
+            Pending
+          </span>
+        );
       default:
-        return <span className={`${base} bg-gray-400 text-white`}>{status || "N/A"}</span>;
+        return (
+          <span className={`${base} bg-gray-400 text-white`}>
+            {status || "N/A"}
+          </span>
+        );
     }
   };
 
   const indexOfLastRequest = currentPage * requestsPerPage;
   const indexOfFirstRequest = indexOfLastRequest - requestsPerPage;
-  const currentRequests = requests.slice(indexOfFirstRequest, indexOfLastRequest);
+  const currentRequests = requests.slice(
+    indexOfFirstRequest,
+    indexOfLastRequest
+  );
   const totalPages = Math.ceil(requests.length / requestsPerPage);
 
   return (
@@ -123,13 +166,18 @@ export default function AdminDepositRequests({ onCancel }) {
         >
           ⬅ Back to Home
         </button>
-        <h2 className="text-2xl font-bold">🧾 All Deposit Requests (Full Log)</h2>
+
+        <h2 className="text-2xl font-bold">
+          🧾 All Deposit Requests (Full Log)
+        </h2>
       </div>
 
       {message && (
         <div
           className={`mb-4 px-4 py-3 rounded text-center font-semibold ${
-            message.startsWith("✅") ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+            message.startsWith("✅")
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
           }`}
         >
           {message}
@@ -146,6 +194,7 @@ export default function AdminDepositRequests({ onCancel }) {
           <option value="rocket">Rocket</option>
           <option value="nagad">Nagad</option>
         </select>
+
         <input
           type="text"
           placeholder="Number"
@@ -155,9 +204,14 @@ export default function AdminDepositRequests({ onCancel }) {
         />
       </div>
 
-      {loading && <p className="text-center text-gray-500">Loading...</p>}
+      {loading && (
+        <p className="text-center text-gray-500">Loading...</p>
+      )}
+
       {!loading && requests.length === 0 && (
-        <p className="text-center text-gray-500">No deposit records found.</p>
+        <p className="text-center text-gray-500">
+          No deposit records found.
+        </p>
       )}
 
       {!loading && requests.length > 0 && (
@@ -178,22 +232,38 @@ export default function AdminDepositRequests({ onCancel }) {
                   <th className="py-3 px-4 text-center">Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {currentRequests.map((req) => (
-                  <tr key={req.id} className="border-b hover:bg-gray-50 transition">
+                  <tr
+                    key={req.id}
+                    className="border-b hover:bg-gray-50 transition"
+                  >
                     <td className="py-2 px-4 text-center">{req.id}</td>
                     <td className="py-2 px-4 text-center text-indigo-600 font-semibold">
                       {req.gameId || "N/A"}
                     </td>
-                    <td className="py-2 px-4 text-center">{req.mobile || "N/A"}</td>
+                    <td className="py-2 px-4 text-center">
+                      {req.mobile || "N/A"}
+                    </td>
                     <td className="py-2 px-4 text-center font-semibold text-green-600">
                       ৳ {Number(req.amount).toFixed(2)}
                     </td>
-                    <td className="py-2 px-4 text-center">{req.method || "N/A"}</td>
-                    <td className="py-2 px-4 text-center">{req.transactionId || "N/A"}</td>
-                    <td className="py-2 px-4 text-center">{req.senderNumber || "N/A"}</td>
-                    <td className="py-2 px-4 text-center">{renderStatusBadge(req.status)}</td>
-                    <td className="py-2 px-4 text-center">{formatDate(req.requestedAt)}</td>
+                    <td className="py-2 px-4 text-center">
+                      {req.method || "N/A"}
+                    </td>
+                    <td className="py-2 px-4 text-center">
+                      {req.transactionId || "N/A"}
+                    </td>
+                    <td className="py-2 px-4 text-center">
+                      {req.senderNumber || "N/A"}
+                    </td>
+                    <td className="py-2 px-4 text-center">
+                      {renderStatusBadge(req.status)}
+                    </td>
+                    <td className="py-2 px-4 text-center">
+                      {formatDate(req.requestedAt)}
+                    </td>
                     <td className="py-2 px-4 text-center space-x-2">
                       {req.status === "PENDING" && (
                         <>
@@ -203,6 +273,7 @@ export default function AdminDepositRequests({ onCancel }) {
                           >
                             Approve
                           </button>
+
                           <button
                             onClick={() => handleAction(req.id, "reject")}
                             className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
@@ -211,6 +282,7 @@ export default function AdminDepositRequests({ onCancel }) {
                           </button>
                         </>
                       )}
+
                       <button
                         onClick={() => handleUpdatePayment(req.gameId)}
                         className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
@@ -236,11 +308,15 @@ export default function AdminDepositRequests({ onCancel }) {
             >
               Previous
             </button>
+
             <span className="self-center text-gray-700">
               Page {currentPage} of {totalPages}
             </span>
+
             <button
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              onClick={() =>
+                setCurrentPage((p) => Math.min(p + 1, totalPages))
+              }
               disabled={currentPage === totalPages}
               className={`px-4 py-2 rounded ${
                 currentPage === totalPages
