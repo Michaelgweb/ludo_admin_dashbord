@@ -1,334 +1,405 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
-import React, { useState, useEffect, useCallback } from "react";
+const API_BASE_URL =
+  process.env.REACT_APP_API_BASE_URL || "http://localhost:8080";
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
+const STATUSES = [
+  { key: "", label: "সব" },
+  { key: "PENDING", label: "Pending" },
+  { key: "APPROVED", label: "Approved" },
+  { key: "REJECTED", label: "Rejected" },
+  { key: "CANCELLED", label: "Cancelled" },
+];
 
-export default function AdminDepositRequests({ onCancel }) {
-  const [requests, setRequests] = useState([]);
+const STATUS_STYLE = {
+  PENDING: "bg-yellow-100 text-yellow-800",
+  APPROVED: "bg-green-100 text-green-800",
+  REJECTED: "bg-red-100 text-red-800",
+  CANCELLED: "bg-gray-200 text-gray-700",
+};
+
+const METHOD_STYLE = {
+  BKASH: "text-pink-600",
+  NAGAD: "text-orange-600",
+  ROCKET: "text-purple-600",
+  UPAY: "text-green-600",
+};
+
+const fmtDate = (v) => (v ? new Date(v).toLocaleString("en-GB") : "-");
+
+export default function AdminDepositRequests() {
+  const [rows, setRows] = useState([]);
+  const [status, setStatus] = useState("PENDING");
+  const [q, setQ] = useState("");
+  const [query, setQuery] = useState(""); // সার্চ বাটনে চাপলে সেট হয়
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [updateMethod, setUpdateMethod] = useState("bkash");
-  const [updateNumber, setUpdateNumber] = useState("");
-  const requestsPerPage = 20;
+  const [busyId, setBusyId] = useState(null);
+  const [role, setRole] = useState("");
 
-  const token = localStorage.getItem("authToken");
+  const authToken = localStorage.getItem("authToken");
+  const navigate = useNavigate();
+  const reqSeq = useRef(0);
 
-  const fetchAllDeposits = useCallback(async () => {
-    setLoading(true);
-    setMessage("");
+  const isStaff = ["ADMIN", "STAFF"].includes(role.toUpperCase());
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/deposit/all-history`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  const errMsg = (err, fallback) => {
+    if (err.response?.status === 403) return "Permission denied";
+    return err.response?.data?.message || fallback;
+  };
 
-      if (!res.ok) throw new Error("Failed to load deposits");
-
-      const data = await res.json();
-
-      data.sort((a, b) => {
-        const dateDiff =
-          new Date(b.requestedAt).getTime() -
-          new Date(a.requestedAt).getTime();
-
-        if (dateDiff !== 0) return dateDiff;
-        return b.id - a.id;
-      });
-
-      setRequests(data);
-      setCurrentPage(1);
-    } catch (err) {
-      console.error("Fetch Error:", err);
-      setMessage("❌ Failed to load deposits.");
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
+  // ---------- role ----------
   useEffect(() => {
-    fetchAllDeposits();
-  }, [fetchAllDeposits]);
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "Invalid Date";
-
-    return date.toLocaleString(undefined, {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-  };
-
-  const handleAction = async (id, action) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/deposit/${action}/${id}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error(`${action} failed`);
-
-      setMessage(`✅ ${action} successful!`);
-      await fetchAllDeposits();
-    } catch (err) {
-      console.error("Action Error:", err);
-      setMessage(`❌ Failed to ${action}`);
-    }
-  };
-
-  const handleUpdatePayment = async (gameId) => {
-    if (!updateNumber.trim()) {
-      setMessage("❌ Enter a valid number.");
+    if (!authToken) {
+      setLoading(false);
       return;
     }
+    axios
+      .get(`${API_BASE_URL}/api/user/profile`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      .then((res) => setRole(res.data.role || ""))
+      .catch(() => setLoading(false));
+  }, [authToken]);
 
-    try {
-      const params = new URLSearchParams({
-        gameId: String(gameId ?? ""),
-        method: updateMethod,
-        number: updateNumber.trim(),
-      });
+  // ---------- load ----------
+  const load = useCallback(
+    async (silent = false) => {
+      if (!authToken) return;
+      const seq = ++reqSeq.current;
+      if (!silent) setLoading(true);
+      try {
+        const params = { page, size: 30 };
+        if (status) params.status = status;
 
-      const res = await fetch(
-        `${API_BASE_URL}/api/payment-config/update-by-gameid?${params}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+        let url = `${API_BASE_URL}/api/deposit/admin`;
+        if (query.trim()) {
+          url = `${API_BASE_URL}/api/deposit/admin/search`;
+          params.q = query.trim();
         }
-      );
 
-      if (!res.ok) throw new Error("Update failed");
+        const res = await axios.get(url, {
+          params,
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
 
-      const data = await res.json();
-      setMessage(
-        `✅ Payment config updated: ${data.method} - ${data.number}`
-      );
-
-      await fetchAllDeposits();
-    } catch (err) {
-      setMessage(`❌ Failed to update payment config: ${err.message}`);
-    }
-  };
-
-  const renderStatusBadge = (status) => {
-    const base = "px-2 py-1 rounded text-xs font-semibold";
-
-    switch (status) {
-      case "APPROVED":
-        return (
-          <span className={`${base} bg-green-500 text-white`}>
-            Completed
-          </span>
-        );
-      case "REJECTED":
-        return (
-          <span className={`${base} bg-red-500 text-white`}>
-            Rejected
-          </span>
-        );
-      case "PENDING":
-        return (
-          <span className={`${base} bg-yellow-400 text-gray-900`}>
-            Pending
-          </span>
-        );
-      default:
-        return (
-          <span className={`${base} bg-gray-400 text-white`}>
-            {status || "N/A"}
-          </span>
-        );
-    }
-  };
-
-  const indexOfLastRequest = currentPage * requestsPerPage;
-  const indexOfFirstRequest = indexOfLastRequest - requestsPerPage;
-  const currentRequests = requests.slice(
-    indexOfFirstRequest,
-    indexOfLastRequest
+        if (seq !== reqSeq.current) return; // পুরনো রিকোয়েস্টের উত্তর বাদ
+        setRows(res.data.content || []);
+        setTotalPages(res.data.totalPages || 0);
+        setTotalElements(res.data.totalElements || 0);
+      } catch (err) {
+        if (!silent) alert("❌ " + errMsg(err, "Failed to load"));
+      } finally {
+        if (seq === reqSeq.current) setLoading(false);
+      }
+    },
+    [authToken, page, status, query]
   );
-  const totalPages = Math.ceil(requests.length / requestsPerPage);
+
+  useEffect(() => {
+    if (isStaff) load();
+  }, [isStaff, load]);
+
+  // নতুন ডিপোজিট দেখতে প্রতি ১৫ সেকেন্ডে চুপচাপ রিফ্রেশ
+  useEffect(() => {
+    if (!isStaff) return;
+    const t = setInterval(() => load(true), 15000);
+    return () => clearInterval(t);
+  }, [isStaff, load]);
+
+  // ---------- actions ----------
+  const approve = async (d) => {
+    const warn = d.userTransactionId
+      ? ""
+      : "\n⚠️ ইউজার এখনো TrxID জমা দেয়নি!";
+    if (
+      !window.confirm(
+        `${d.gameId} এর ৳${d.amount} (${d.method}) অ্যাপ্রুভ করবেন?\nTrxID: ${
+          d.userTransactionId || "-"
+        }${warn}`
+      )
+    )
+      return;
+
+    setBusyId(d.id);
+    try {
+      await axios.post(
+        `${API_BASE_URL}/api/deposit/admin/${d.id}/approve`,
+        { note: "Manual approve" },
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      await load(true);
+    } catch (err) {
+      alert("❌ " + errMsg(err, "Approve failed"));
+      await load(true);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const reject = async (d) => {
+    const reason = window.prompt(`${d.gameId} এর ডিপোজিট রিজেক্টের কারণ:`);
+    if (reason === null) return; // Cancel চাপলে কিছু হবে না
+
+    setBusyId(d.id);
+    try {
+      await axios.post(
+        `${API_BASE_URL}/api/deposit/admin/${d.id}/reject`,
+        { reason: reason.trim() || "Rejected by admin" },
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      await load(true);
+    } catch (err) {
+      alert("❌ " + errMsg(err, "Reject failed"));
+      await load(true);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doSearch = (e) => {
+    e.preventDefault();
+    setPage(0);
+    setQuery(q);
+  };
+
+  const clearSearch = () => {
+    setQ("");
+    setQuery("");
+    setPage(0);
+  };
+
+  const changeStatus = (key) => {
+    setStatus(key);
+    setPage(0);
+  };
+
+  // ---------- render ----------
+  if (!authToken) {
+    return <div className="text-center p-6">❌ লগইন করুন</div>;
+  }
+
+  if (!loading && !isStaff) {
+    return (
+      <div className="max-w-xl mx-auto p-6 text-center">
+        <p className="mb-4">❌ শুধু অ্যাডমিন/সাপোর্ট এই পেজ দেখতে পারবে</p>
+        <button
+          onClick={() => navigate("/")}
+          className="px-4 py-2 bg-indigo-500 text-white rounded-lg"
+        >
+          ← Back
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-4">
+    <div className="max-w-7xl mx-auto p-4">
+      <div className="flex items-center justify-between mb-4">
         <button
-          onClick={onCancel}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded shadow"
+          onClick={() => navigate("/")}
+          className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition"
         >
-          ⬅ Back to Home
+          ← Back
         </button>
-
-        <h2 className="text-2xl font-bold">
-          🧾 All Deposit Requests (Full Log)
-        </h2>
+        <h2 className="text-2xl font-bold">💰 Deposit Requests</h2>
+        <button
+          onClick={() => load()}
+          className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg"
+        >
+          ↻ Refresh
+        </button>
       </div>
 
-      {message && (
-        <div
-          className={`mb-4 px-4 py-3 rounded text-center font-semibold ${
-            message.startsWith("✅")
-              ? "bg-green-100 text-green-700"
-              : "bg-red-100 text-red-700"
-          }`}
-        >
-          {message}
-        </div>
-      )}
-
-      <div className="mb-4 flex space-x-2 items-center">
-        <select
-          value={updateMethod}
-          onChange={(e) => setUpdateMethod(e.target.value)}
-          className="border rounded px-2 py-1"
-        >
-          <option value="bkash">Bkash</option>
-          <option value="rocket">Rocket</option>
-          <option value="nagad">Nagad</option>
-        </select>
-
+      {/* সার্চ */}
+      <form onSubmit={doSearch} className="flex gap-2 mb-4">
         <input
           type="text"
-          placeholder="Number"
-          value={updateNumber}
-          onChange={(e) => setUpdateNumber(e.target.value)}
-          className="border rounded px-2 py-1"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Game ID / মোবাইল / DEP1234567 / TrxID"
+          className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
         />
+        <button
+          type="submit"
+          className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+        >
+          Search
+        </button>
+        {query && (
+          <button
+            type="button"
+            onClick={clearSearch}
+            className="px-4 py-2 bg-gray-200 rounded-lg"
+          >
+            ✕ Clear
+          </button>
+        )}
+      </form>
+
+      {/* স্ট্যাটাস ফিল্টার */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {STATUSES.map((s) => (
+          <button
+            key={s.key}
+            onClick={() => changeStatus(s.key)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium border ${
+              status === s.key
+                ? "bg-indigo-600 text-white border-indigo-600"
+                : "bg-white text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+        <span className="ml-auto text-sm text-gray-500 self-center">
+          মোট: {totalElements}
+        </span>
       </div>
 
-      {loading && (
-        <p className="text-center text-gray-500">Loading...</p>
-      )}
+      {/* টেবিল */}
+      <div className="bg-white rounded-xl shadow-md border overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left text-gray-600">
+            <tr>
+              <th className="p-3">সময়</th>
+              <th className="p-3">Server ID</th>
+              <th className="p-3">User</th>
+              <th className="p-3">Method</th>
+              <th className="p-3 text-right">Amount</th>
+              <th className="p-3">পেমেন্ট নম্বর</th>
+              <th className="p-3">TrxID</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={9} className="p-6 text-center">
+                  ⏳ Loading...
+                </td>
+              </tr>
+            )}
 
-      {!loading && requests.length === 0 && (
-        <p className="text-center text-gray-500">
-          No deposit records found.
-        </p>
-      )}
+            {!loading && rows.length === 0 && (
+              <tr>
+                <td colSpan={9} className="p-6 text-center text-gray-400">
+                  কোনো ডিপোজিট নেই
+                </td>
+              </tr>
+            )}
 
-      {!loading && requests.length > 0 && (
-        <>
-          <div className="overflow-x-auto shadow-lg rounded-lg border border-gray-200">
-            <table className="min-w-full bg-white text-sm">
-              <thead className="bg-gray-100 border-b">
-                <tr>
-                  <th className="py-3 px-4 text-center">ID</th>
-                  <th className="py-3 px-4 text-center">Game ID</th>
-                  <th className="py-3 px-4 text-center">Mobile</th>
-                  <th className="py-3 px-4 text-center">Amount</th>
-                  <th className="py-3 px-4 text-center">Method</th>
-                  <th className="py-3 px-4 text-center">Txn ID</th>
-                  <th className="py-3 px-4 text-center">Sender Number</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-center">Requested At</th>
-                  <th className="py-3 px-4 text-center">Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {currentRequests.map((req) => (
-                  <tr
-                    key={req.id}
-                    className="border-b hover:bg-gray-50 transition"
+            {!loading &&
+              rows.map((d) => (
+                <tr key={d.id} className="border-t hover:bg-gray-50 align-top">
+                  <td className="p-3 whitespace-nowrap">
+                    <div>{fmtDate(d.createdAt)}</div>
+                    {d.processedAt && (
+                      <div className="text-xs text-gray-400">
+                        প্রসেস: {fmtDate(d.processedAt)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 font-mono">{d.transactionId}</td>
+                  <td className="p-3">
+                    <div className="font-medium">{d.gameId}</div>
+                    <div className="text-xs text-gray-500">{d.mobile}</div>
+                  </td>
+                  <td
+                    className={`p-3 font-semibold ${
+                      METHOD_STYLE[d.method] || ""
+                    }`}
                   >
-                    <td className="py-2 px-4 text-center">{req.id}</td>
-                    <td className="py-2 px-4 text-center text-indigo-600 font-semibold">
-                      {req.gameId || "N/A"}
-                    </td>
-                    <td className="py-2 px-4 text-center">
-                      {req.mobile || "N/A"}
-                    </td>
-                    <td className="py-2 px-4 text-center font-semibold text-green-600">
-                      ৳ {Number(req.amount).toFixed(2)}
-                    </td>
-                    <td className="py-2 px-4 text-center">
-                      {req.method || "N/A"}
-                    </td>
-                    <td className="py-2 px-4 text-center">
-                      {req.transactionId || "N/A"}
-                    </td>
-                    <td className="py-2 px-4 text-center">
-                      {req.senderNumber || "N/A"}
-                    </td>
-                    <td className="py-2 px-4 text-center">
-                      {renderStatusBadge(req.status)}
-                    </td>
-                    <td className="py-2 px-4 text-center">
-                      {formatDate(req.requestedAt)}
-                    </td>
-                    <td className="py-2 px-4 text-center space-x-2">
-                      {req.status === "PENDING" && (
-                        <>
-                          <button
-                            onClick={() => handleAction(req.id, "approve")}
-                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded"
-                          >
-                            Approve
-                          </button>
+                    {d.method}
+                  </td>
+                  <td className="p-3 text-right font-semibold">
+                    ৳{d.amount}
+                  </td>
+                  <td className="p-3 font-mono">{d.paymentAccountNumber}</td>
+                  <td className="p-3 font-mono">
+                    {d.userTransactionId || (
+                      <span className="text-gray-400">জমা দেয়নি</span>
+                    )}
+                    {d.submittedAt && (
+                      <div className="text-xs text-gray-400 font-sans">
+                        {fmtDate(d.submittedAt)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-semibold ${
+                        STATUS_STYLE[d.status] || ""
+                      }`}
+                    >
+                      {d.status}
+                    </span>
+                    {d.status === "APPROVED" && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {d.autoApproved ? "🤖 অটো" : "👤 ম্যানুয়াল"}
+                      </div>
+                    )}
+                    {d.note && (
+                      <div className="text-xs text-gray-500 mt-1 max-w-[140px]">
+                        {d.note}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    {d.status === "PENDING" ? (
+                      <div className="flex gap-2">
+                        <button
+                          disabled={busyId === d.id}
+                          onClick={() => approve(d)}
+                          className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                        >
+                          ✔ Approve
+                        </button>
+                        <button
+                          disabled={busyId === d.id}
+                          onClick={() => reject(d)}
+                          className="px-3 py-1 rounded bg-red-500 hover:bg-red-600 text-white disabled:opacity-50"
+                        >
+                          ✖ Reject
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
 
-                          <button
-                            onClick={() => handleAction(req.id, "reject")}
-                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
-                          >
-                            Reject
-                          </button>
-                        </>
-                      )}
-
-                      <button
-                        onClick={() => handleUpdatePayment(req.gameId)}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
-                      >
-                        Update Payment
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-4 flex justify-center space-x-4">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-              disabled={currentPage === 1}
-              className={`px-4 py-2 rounded ${
-                currentPage === 1
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700"
-              }`}
-            >
-              Previous
-            </button>
-
-            <span className="self-center text-gray-700">
-              Page {currentPage} of {totalPages}
-            </span>
-
-            <button
-              onClick={() =>
-                setCurrentPage((p) => Math.min(p + 1, totalPages))
-              }
-              disabled={currentPage === totalPages}
-              className={`px-4 py-2 rounded ${
-                currentPage === totalPages
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700"
-              }`}
-            >
-              Next
-            </button>
-          </div>
-        </>
+      {/* পেজিনেশন */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-4">
+          <button
+            disabled={page === 0}
+            onClick={() => setPage((p) => p - 1)}
+            className="px-4 py-2 bg-white border rounded-lg disabled:opacity-40"
+          >
+            ← আগের
+          </button>
+          <span className="text-sm">
+            {page + 1} / {totalPages}
+          </span>
+          <button
+            disabled={page + 1 >= totalPages}
+            onClick={() => setPage((p) => p + 1)}
+            className="px-4 py-2 bg-white border rounded-lg disabled:opacity-40"
+          >
+            পরের →
+          </button>
+        </div>
       )}
     </div>
   );
-}
+      }
