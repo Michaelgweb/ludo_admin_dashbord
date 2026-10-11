@@ -9,6 +9,7 @@ export default function Home({
   onShowDeposit,
   onShowWithdraw,
   onShowAdminWithdraw,
+  onShowAdminWithdrawRequests,
   onShowAdminDepositRequests,
   onShowHistory,
   onShowAdminUserHistory,
@@ -281,7 +282,7 @@ export default function Home({
                 />
                 <ActionButton
                   text="📤 Admin Withdraw Requests"
-                  onClick={onShowAdminWithdraw}
+                  onClick={onShowAdminWithdrawRequests || onShowAdminWithdraw}
                   className="bg-blue-600"
                 />
                 <ActionButton
@@ -293,6 +294,13 @@ export default function Home({
                   text="⚙️ Admin Payment Number"
                   onClick={() => navigate("/payment-number")}
                   className="bg-orange-600"
+                />
+
+                {/* ✅ New: App Update Upload (Admin only) */}
+                <ActionButton
+                  text="📲 App Update Upload"
+                  onClick={() => navigate("/admin-app")}
+                  className="bg-teal-600"
                 />
               </>
             )}
