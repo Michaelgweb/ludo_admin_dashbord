@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 
@@ -14,6 +13,7 @@ import AdminUserHistory from "./AdminUserHistory";
 import ForgotPassword from "./Forgotpassword";
 import PaymentNumber from "./PaymentNumber";
 import ReferralHistoryTable from "./components/ReferralHistoryTable";
+import AdminApp from "./pages/AdminApp";
 
 function App() {
   const [token, setToken] = useState(
@@ -159,6 +159,7 @@ function App() {
             onShowAdminUserHistory={() =>
               navigate("/admin-user-history")
             }
+            onShowAdminApp={() => navigate("/admin-app")}
           />
         }
       />
@@ -227,6 +228,24 @@ function App() {
             />
           ) : (
             <p>❌ অনুমতি নেই — শুধু অ্যাডমিন</p>
+          )
+        }
+      />
+
+      <Route
+        path="/admin-app"
+        element={
+          isAdmin ? (
+            <AdminApp />
+          ) : (
+            <p
+              style={{
+                padding: "20px",
+                textAlign: "center",
+              }}
+            >
+              ❌ অনুমতি নেই — শুধু অ্যাডমিন
+            </p>
           )
         }
       />
