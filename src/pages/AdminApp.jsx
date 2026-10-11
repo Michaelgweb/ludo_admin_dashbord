@@ -50,6 +50,7 @@ export default function AdminApp() {
   const [versionName, setVersionName] = useState("");
   const [versionCode, setVersionCode] = useState("");
   const [force, setForce] = useState(false);
+  const [changelog, setChangelog] = useState("");
   const [file, setFile] = useState(null);
   const [dragging, setDragging] = useState(false);
 
@@ -141,6 +142,7 @@ export default function AdminApp() {
     body.append("versionName", versionName.trim());
     body.append("versionCode", String(Number(versionCode)));
     body.append("force", String(force));
+    if (changelog.trim()) body.append("changelog", changelog.trim());
 
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
@@ -164,6 +166,7 @@ export default function AdminApp() {
         setFile(null);
         setVersionName("");
         setForce(false);
+        setChangelog("");
         setProgress({ pct: 0, loaded: 0, total: 0 });
         loadCurrent();
       } else {
@@ -429,6 +432,24 @@ export default function AdminApp() {
               })}
             </div>
           </fieldset>
+
+          {/* What's new */}
+          <div>
+            <label htmlFor="changelog" className="block text-sm font-medium text-gray-300 mb-2">
+              What's new (অ্যাপের আপডেট স্ক্রিনে দেখাবে)
+            </label>
+            <textarea
+              id="changelog"
+              rows={3}
+              maxLength={300}
+              value={changelog}
+              disabled={uploading}
+              onChange={(e) => setChangelog(e.target.value)}
+              placeholder="We've added some cool new features and fixed a few bugs."
+              className="w-full rounded-lg bg-gray-900 border border-gray-600 px-3 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent disabled:opacity-60 resize-none"
+            />
+            <div className="text-right text-xs text-gray-500 mt-1">{changelog.length}/300</div>
+          </div>
 
           {/* Progress */}
           {uploading && (
