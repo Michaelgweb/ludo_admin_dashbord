@@ -9,7 +9,7 @@ function LoginForm({ onLogin, onRegisterClick }) {
   const navigate = useNavigate();
 
   const API_BASE_URL =
-    process.env.REACT_APP_API_BASE_URL?.trim() || "https://ludo-server-1.onrender.com";
+    process.env.REACT_APP_API_BASE_URL?.trim() || "https://api.onlieshop.online";
 
   // Normalize mobile to 880XXXXXXXXXX format
   const normalizeMobile = (number) => {
