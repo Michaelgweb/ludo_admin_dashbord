@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 // API ঠিকানা আসে .env এর REACT_APP_API_BASE_URL থেকে
-const API_BASE = (process.env.REACT_APP_API_BASE_URL || "http://localhost:8080")
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "https://api.onlieshop.online")
   .trim()
   .replace(/\/+$/, "");
 
