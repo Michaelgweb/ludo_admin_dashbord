@@ -1,35 +1,50 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+
+// Registration stat cards: key = field returned by GET /api/admin/users/stats
+const STAT_CARDS = [
+  { key: "TODAY", label: "Today", color: "bg-green-600" },
+  { key: "YESTERDAY", label: "Yesterday", color: "bg-emerald-600" },
+  { key: "7D", label: "Last 7 Days", color: "bg-cyan-600" },
+  { key: "15D", label: "Last 15 Days", color: "bg-sky-600" },
+  { key: "1M", label: "Last 1 Month", color: "bg-blue-600" },
+  { key: "3M", label: "Last 3 Months", color: "bg-indigo-600" },
+  { key: "6M", label: "Last 6 Months", color: "bg-purple-600" },
+  { key: "1Y", label: "Last 1 Year", color: "bg-pink-600" },
+];
 
 export default function Home({
   token,
   mobile,
   gameId,
   onLogout,
-  onShowDeposit,
-  onShowWithdraw,
   onShowAdminWithdraw,
   onShowAdminWithdrawRequests,
   onShowAdminDepositRequests,
-  onShowHistory,
   onShowAdminUserHistory,
-  onShowLudoMatch,
 }) {
   const navigate = useNavigate();
   const [balance, setBalance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isStaff, setIsStaff] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
   const fileInputRef = useRef();
 
+  // Registration stats (admin + staff)
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
+
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "https://ludo-server-1.onrender.com";
 
   // Lifetime Winning state
   const [lifetimeWinning, setLifetimeWinning] = useState(0);
 
+  // ---------------- Profile ----------------
   useEffect(() => {
     if (!token) return;
     const fetchUserData = async () => {
@@ -41,9 +56,12 @@ export default function Home({
         const data = await res.json();
         setUserProfile(data);
         setDisplayName(data.displayName || "");
-        setIsAdmin(data.role?.toLowerCase() === "admin");
 
-        // ✅ Lifetime Winning from backend (lifetimeEarnings)
+        const role = data.role?.toLowerCase();
+        setIsAdmin(role === "admin");
+        setIsStaff(role === "staff");
+
+        // Lifetime Winning from backend (lifetimeEarnings)
         if (typeof data.lifetimeEarnings === "number") {
           setLifetimeWinning(data.lifetimeEarnings);
         }
@@ -54,6 +72,7 @@ export default function Home({
     fetchUserData();
   }, [token, API_BASE_URL]);
 
+  // ---------------- Balance ----------------
   useEffect(() => {
     if (!token) return;
     const fetchBalance = async () => {
@@ -77,10 +96,43 @@ export default function Home({
     fetchBalance();
   }, [token, API_BASE_URL]);
 
+  // ---------------- Registration stats (admin + staff) ----------------
+  const canViewStats = isAdmin || isStaff;
+
+  const fetchStats = useCallback(async () => {
+    if (!token) return;
+    setStatsLoading(true);
+    setStatsError("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/stats`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Failed to load stats (${res.status})`);
+      const data = await res.json();
+      setStats(data);
+    } catch (err) {
+      console.error(err);
+      setStatsError("Could not load user stats.");
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [token, API_BASE_URL]);
+
+  useEffect(() => {
+    if (canViewStats) fetchStats();
+  }, [canViewStats, fetchStats]);
+
+  // ---------------- Helpers ----------------
   const renderBalance = () => {
     if (loading) return "Loading...";
     if (balance === "Error") return "Balance unavailable";
     return `৳ ${balance.toFixed(2)}`;
+  };
+
+  const formatCount = (value) => {
+    if (statsLoading && !stats) return "...";
+    if (value === undefined || value === null) return "-";
+    return Number(value).toLocaleString();
   };
 
   const handleSaveProfile = async () => {
@@ -254,7 +306,7 @@ export default function Home({
                   <strong>🎮 Game ID:</strong> {userProfile.gameId}
                 </div>
 
-                {/* ✅ Lifetime Winning */}
+                {/* Lifetime Winning */}
                 <div className="flex items-center space-x-2 mt-2">
                   <span className="font-semibold text-yellow-600">
                     🪙 Lifetime Winning: ৳ {lifetimeWinning}
@@ -264,47 +316,73 @@ export default function Home({
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-            <ActionButton text="💰 Deposit" onClick={onShowDeposit} className="bg-green-600" />
-            <ActionButton text="💸 Withdraw" onClick={onShowWithdraw} className="bg-red-500" />
-            <ActionButton text="📂 My Transaction History" onClick={onShowHistory} className="bg-cyan-600" />
-            <ActionButton text="🎲 Play Ludo" onClick={onShowLudoMatch} className="bg-yellow-500" />
+          {/* ================= User registration stats (Admin + Staff) ================= */}
+          {canViewStats && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-800">👥 User Registrations</h2>
+                <button
+                  onClick={fetchStats}
+                  disabled={statsLoading}
+                  className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+                >
+                  {statsLoading ? "Refreshing..." : "🔄 Refresh"}
+                </button>
+              </div>
 
-            {/* ✅ New Referral History Button */}
-            <ActionButton text="📋 Referral History" onClick={() => navigate("/referrals")} className="bg-indigo-600" />
+              {/* Total users */}
+              <div className="bg-gray-800 text-white rounded-lg shadow-md px-5 py-4 flex items-center justify-between">
+                <span className="font-semibold">Total Users</span>
+                <span className="text-3xl font-bold">{formatCount(stats?.total)}</span>
+              </div>
 
-            {isAdmin && (
-              <>
-                <ActionButton
-                  text="📥 Admin Deposit Requests"
-                  onClick={onShowAdminDepositRequests}
-                  className="bg-purple-600"
-                />
-                <ActionButton
-                  text="📤 Admin Withdraw Requests"
-                  onClick={onShowAdminWithdrawRequests || onShowAdminWithdraw}
-                  className="bg-blue-600"
-                />
-                <ActionButton
-                  text="🧾 All User History"
-                  onClick={onShowAdminUserHistory}
-                  className="bg-gray-700"
-                />
-                <ActionButton
-                  text="⚙️ Admin Payment Number"
-                  onClick={() => navigate("/payment-number")}
-                  className="bg-orange-600"
-                />
+              {statsError && <div className="text-sm text-red-600">{statsError}</div>}
 
-                {/* ✅ New: App Update Upload (Admin only) */}
-                <ActionButton
-                  text="📲 App Update Upload"
-                  onClick={() => navigate("/admin-app")}
-                  className="bg-teal-600"
-                />
-              </>
-            )}
-          </div>
+              {/* Period cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {STAT_CARDS.map((card) => (
+                  <div
+                    key={card.key}
+                    className={`${card.color} text-white rounded-lg shadow-md px-4 py-3 text-center`}
+                  >
+                    <div className="text-2xl font-bold">{formatCount(stats?.[card.key])}</div>
+                    <div className="text-xs mt-1 opacity-90">{card.label}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ================= Admin buttons (Admin only) ================= */}
+          {isAdmin && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+              <ActionButton
+                text="📥 Admin Deposit Requests"
+                onClick={onShowAdminDepositRequests}
+                className="bg-purple-600"
+              />
+              <ActionButton
+                text="📤 Admin Withdraw Requests"
+                onClick={onShowAdminWithdrawRequests || onShowAdminWithdraw}
+                className="bg-blue-600"
+              />
+              <ActionButton
+                text="🧾 All User History"
+                onClick={onShowAdminUserHistory}
+                className="bg-gray-700"
+              />
+              <ActionButton
+                text="⚙️ Admin Payment Number"
+                onClick={() => navigate("/payment-number")}
+                className="bg-orange-600"
+              />
+              <ActionButton
+                text="📲 App Update Upload"
+                onClick={() => navigate("/admin-app")}
+                className="bg-teal-600"
+              />
+            </div>
+          )}
         </div>
       </main>
     </div>
@@ -320,4 +398,4 @@ function ActionButton({ text, onClick, className }) {
       {text}
     </button>
   );
-}
+              }
