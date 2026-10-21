@@ -3,22 +3,17 @@ import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 
 import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
-import DepositForm from "./DepositForm";
-import WithdrawForm from "./WithdrawForm";
 import Home from "./Home";
 import AdminDepositRequests from "./AdminDepositRequests";
 import AdminWithdrawRequests from "./AdminWithdrawRequests";
-import UserHistory from "./UserHistory";
-import AdminUserHistory from "./AdminUserHistory";
+import AdminUserHistory from "./AdminUserHistory"; // old page: all users' transaction history
+import AllUsers from "./UserHistory";              // NEW page: user list, stats, IP, device, user agent
 import ForgotPassword from "./Forgotpassword";
 import PaymentNumber from "./PaymentNumber";
-import ReferralHistoryTable from "./components/ReferralHistoryTable";
 import AdminApp from "./pages/AdminApp";
 
 function App() {
-  const [token, setToken] = useState(
-    () => localStorage.getItem("authToken")
-  );
+  const [token, setToken] = useState(() => localStorage.getItem("authToken"));
   const [mobile, setMobile] = useState("");
   const [gameId, setGameId] = useState("");
   const [role, setRole] = useState(null);
@@ -30,17 +25,14 @@ function App() {
   const API_BASE_URL =
     process.env.REACT_APP_API_BASE_URL || "http://localhost:8080";
 
-  // Restore login session and redirect to dashboard.
+  // Restore login session and redirect to dashboard
   useEffect(() => {
-    if (
-      token &&
-      (location.pathname === "/" || location.pathname === "/login")
-    ) {
+    if (token && (location.pathname === "/" || location.pathname === "/login")) {
       navigate("/dashboard", { replace: true });
     }
   }, [token, navigate, location.pathname]);
 
-  // Logout.
+  // Logout
   const handleLogout = useCallback(() => {
     localStorage.removeItem("authToken");
     localStorage.removeItem("userRole");
@@ -54,7 +46,7 @@ function App() {
     navigate("/", { replace: true });
   }, [navigate]);
 
-  // Load authenticated user's profile.
+  // Load the authenticated user's profile
   useEffect(() => {
     if (!token) {
       setRole(null);
@@ -77,7 +69,6 @@ function App() {
         }
 
         const user = await res.json();
-
         if (cancelled) return;
 
         const userRole = (user.role || "").toLowerCase();
@@ -88,7 +79,6 @@ function App() {
         localStorage.setItem("userRole", userRole);
       } catch (err) {
         if (cancelled) return;
-
         console.error("Error loading user profile:", err);
         handleLogout();
       }
@@ -113,8 +103,10 @@ function App() {
   };
 
   const isAdmin = role === "admin";
+  const isStaff = role === "staff";
+  const isAdminOrStaff = isAdmin || isStaff;
 
-  // Public routes for unauthenticated users.
+  // Public screens for unauthenticated users
   if (!token) {
     if (location.pathname === "/forgot-password") {
       return <ForgotPassword />;
@@ -137,8 +129,13 @@ function App() {
     return <p style={{ padding: "20px" }}>লোড হচ্ছে...</p>;
   }
 
+  const noPermission = (text) => (
+    <p style={{ padding: "20px", textAlign: "center" }}>{text}</p>
+  );
+
   return (
     <Routes>
+      {/* Dashboard */}
       <Route
         path="/dashboard"
         element={
@@ -147,61 +144,22 @@ function App() {
             mobile={mobile}
             gameId={gameId}
             onLogout={handleLogout}
-            onShowDeposit={() => navigate("/deposit")}
-            onShowWithdraw={() => navigate("/withdraw")}
-            onShowAdminDepositRequests={() =>
-              navigate("/admin-deposits")
-            }
-            onShowAdminWithdrawRequests={() =>
-              navigate("/admin-withdraws")
-            }
-            onShowHistory={() => navigate("/history")}
-            onShowAdminUserHistory={() =>
-              navigate("/admin-user-history")
-            }
+            onShowAdminDepositRequests={() => navigate("/admin-deposits")}
+            onShowAdminWithdrawRequests={() => navigate("/admin-withdraws")}
+            onShowAdminUserHistory={() => navigate("/admin-user-history")}
             onShowAdminApp={() => navigate("/admin-app")}
           />
         }
       />
 
-      <Route
-        path="/deposit"
-        element={
-          <DepositForm
-            token={token}
-            onCancel={() => navigate("/dashboard")}
-          />
-        }
-      />
-
-      <Route
-        path="/withdraw"
-        element={
-          <WithdrawForm
-            token={token}
-            onCancel={() => navigate("/dashboard")}
-          />
-        }
-      />
-
-      <Route
-        path="/history"
-        element={
-          <UserHistory
-            onCancel={() => navigate("/dashboard")}
-          />
-        }
-      />
-
+      {/* ===== Admin only ===== */}
       <Route
         path="/admin-deposits"
         element={
           isAdmin ? (
-            <AdminDepositRequests
-              onCancel={() => navigate("/dashboard")}
-            />
+            <AdminDepositRequests onCancel={() => navigate("/dashboard")} />
           ) : (
-            <p>❌ অনুমতি নেই — শুধু অ্যাডমিন</p>
+            noPermission("❌ অনুমতি নেই — শুধু অ্যাডমিন")
           )
         }
       />
@@ -210,11 +168,9 @@ function App() {
         path="/admin-withdraws"
         element={
           isAdmin ? (
-            <AdminWithdrawRequests
-              onCancel={() => navigate("/dashboard")}
-            />
+            <AdminWithdrawRequests onCancel={() => navigate("/dashboard")} />
           ) : (
-            <p>❌ অনুমতি নেই — শুধু অ্যাডমিন</p>
+            noPermission("❌ অনুমতি নেই — শুধু অ্যাডমিন")
           )
         }
       />
@@ -223,11 +179,9 @@ function App() {
         path="/admin-user-history"
         element={
           isAdmin ? (
-            <AdminUserHistory
-              onCancel={() => navigate("/dashboard")}
-            />
+            <AdminUserHistory onCancel={() => navigate("/dashboard")} />
           ) : (
-            <p>❌ অনুমতি নেই — শুধু অ্যাডমিন</p>
+            noPermission("❌ অনুমতি নেই — শুধু অ্যাডমিন")
           )
         }
       />
@@ -235,25 +189,7 @@ function App() {
       <Route
         path="/admin-app"
         element={
-          isAdmin ? (
-            <AdminApp />
-          ) : (
-            <p
-              style={{
-                padding: "20px",
-                textAlign: "center",
-              }}
-            >
-              ❌ অনুমতি নেই — শুধু অ্যাডমিন
-            </p>
-          )
-        }
-      />
-
-      <Route
-        path="/referrals"
-        element={
-          <ReferralHistoryTable />
+          isAdmin ? <AdminApp /> : noPermission("❌ অনুমতি নেই — শুধু অ্যাডমিন")
         }
       />
 
@@ -263,27 +199,24 @@ function App() {
           isAdmin ? (
             <PaymentNumber token={token} role={role} />
           ) : (
-            <p
-              style={{
-                padding: "20px",
-                textAlign: "center",
-              }}
-            >
-              ❌ অনুমতি নেই — শুধু অ্যাডমিন
-            </p>
+            noPermission("❌ অনুমতি নেই — শুধু অ্যাডমিন")
           )
         }
       />
 
+      {/* ===== Admin + Staff: user list, stats, IP, device, user agent ===== */}
       <Route
-        path="/forgot-password"
-        element={<ForgotPassword />}
+        path="/admin-users"
+        element={
+          isAdminOrStaff ? (
+            <AllUsers token={token} onBack={() => navigate("/dashboard")} />
+          ) : (
+            noPermission("❌ অনুমতি নেই — শুধু অ্যাডমিন ও স্টাফ")
+          )
+        }
       />
 
-      <Route
-        path="*"
-        element={<p>❌ Page not found</p>}
-      />
+      <Route path="*" element={<p>❌ Page not found</p>} />
     </Routes>
   );
 }
